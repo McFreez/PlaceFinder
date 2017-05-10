@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "795137021022",
+    "firebase_url": "https://placefinder-65616.firebaseio.com",
+    "project_id": "placefinder-65616",
+    "storage_bucket": "placefinder-65616.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:795137021022:android:320b051eaa593081",
+        "android_client_info": {
+          "package_name": "com.placefinder"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "795137021022-tlmn9a7cdsmnv1cpva5rhvl9icuv4ofs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.placefinder",
+            "certificate_hash": "c9860cd9b3c26719838d69d4c1489129be26dd4c"
+          }
+        },
+        {
+          "client_id": "795137021022-9tlhgutj34nis01voccrrk8vs8hjpjm3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDPSSx_Si3Za3QG6UxN9yKYYi0-e5SYW-I"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "795137021022-9tlhgutj34nis01voccrrk8vs8hjpjm3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
