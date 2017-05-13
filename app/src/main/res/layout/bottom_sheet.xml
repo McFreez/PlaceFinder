@@ -28,7 +28,6 @@
             android:paddingTop="20dp">
 
             <TextView
-
                 android:id="@+id/bottom_sheet_peek_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -49,15 +48,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:background="@color/colorAccent"
-            android:paddingTop="16dp"
-            android:paddingBottom="16dp">
+            android:background="@color/colorAccent">
             <LinearLayout
+                android:id="@+id/button_delete_place"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="0.5"
                 android:orientation="vertical"
-                android:background="?android:attr/selectableItemBackground">
+                android:background="?android:attr/selectableItemBackground"
+                android:paddingTop="16dp"
+                android:paddingBottom="16dp">
 
                 <ImageView
                     android:layout_width="48dp"
@@ -76,11 +76,14 @@
                     android:textColor="@color/colorPrimary" />
             </LinearLayout>
             <LinearLayout
+                android:id="@+id/button_add_place_image"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="0.5"
                 android:orientation="vertical"
-                android:background="?android:attr/selectableItemBackground">
+                android:background="?android:attr/selectableItemBackground"
+                android:paddingTop="16dp"
+                android:paddingBottom="16dp">
 
                 <ImageView
                     android:layout_width="48dp"

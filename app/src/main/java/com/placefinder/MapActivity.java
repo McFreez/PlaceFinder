@@ -20,6 +20,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -43,6 +44,7 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.vision.text.Line;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.placefinder.DTO.Place;
@@ -88,6 +90,7 @@ public class MapActivity extends AppCompatActivity implements
     private BottomSheetBehavior mBottomSheetBehavior;
     private TextView mBottomSheetPeekTitle;
     private TextView mBottomSheetPeekDescription;
+    private LinearLayout mButtonDeletePlace;
 
     private TextView userNameTextView;
     private TextView userEmailTextView;
@@ -101,6 +104,7 @@ public class MapActivity extends AppCompatActivity implements
 
     private List<Place> places = new ArrayList<>();
     private List<Marker> markers = new ArrayList<>();
+    private Place mSelectedPlace;
 
     //<editor-fold desc="Life cycle">
     @Override
@@ -156,66 +160,22 @@ public class MapActivity extends AppCompatActivity implements
 
     private void configureBottomSheet(){
         View bottomSheet = findViewById(R.id.bottom_sheet);
-        final RelativeLayout bottomSheetPeek = (RelativeLayout) bottomSheet.findViewById(R.id.bottom_sheet_peek);
+        RelativeLayout bottomSheetPeek = (RelativeLayout) bottomSheet.findViewById(R.id.bottom_sheet_peek);
+        mButtonDeletePlace = (LinearLayout) bottomSheet.findViewById(R.id.button_delete_place);
+        LinearLayout buttonAddPLaceImage = (LinearLayout) bottomSheet.findViewById(R.id.button_add_place_image);
         mBottomSheetPeekTitle = (TextView) bottomSheet.findViewById(R.id.bottom_sheet_peek_title);
         mBottomSheetPeekDescription = (TextView) findViewById(R.id.bottom_sheet_peek_details);
         mBottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
-        mBottomSheetBehavior.setBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
 
-            private boolean changesApplied = true;
-            private int lastState = BottomSheetBehavior.STATE_COLLAPSED;
-            private boolean locationFABHidden = false;
-            private boolean isSlidingTop = true;
+        BottomPanelBehaviour bottomPanelBehaviour = new BottomPanelBehaviour(this, mBottomSheetPeekTitle, mBottomSheetPeekDescription, bottomSheetPeek, locationFAB, mBottomSheetBehavior);
 
-            @Override
-            public void onStateChanged(@NonNull View bottomSheet, int newState) {
-                if(locationFABHidden && (newState == BottomSheetBehavior.STATE_COLLAPSED || newState == BottomSheetBehavior.STATE_HIDDEN)){
-                    locationFAB.animate().scaleX(1).scaleY(1).setDuration(300).start();
-                    locationFABHidden = false;
-                }
-
-                if(newState == BottomSheetBehavior.STATE_COLLAPSED || newState == BottomSheetBehavior.STATE_EXPANDED || newState == BottomSheetBehavior.STATE_HIDDEN){
-                    lastState = newState;
-                    if(newState == BottomSheetBehavior.STATE_COLLAPSED){
-                        bottomSheetPeek.setBackgroundColor(getResources().getColor(R.color.colorAccent));
-                        mBottomSheetPeekTitle.setTextColor(Color.BLACK);
-                        mBottomSheetPeekDescription.setTextColor(Color.GRAY);
-                    }
-
-                }
-                else if(newState == BottomSheetBehavior.STATE_DRAGGING){
-                    changesApplied = false;
-                }
-
-            }
-
-            @Override
-            public void onSlide(@NonNull View bottomSheet, float slideOffset) {
-                if(!isSlidingTop && slideOffset > 0)
-                    changesApplied = false;
-                if(!changesApplied) {
-                    if(lastState ==  BottomSheetBehavior.STATE_COLLAPSED){
-                        if(slideOffset > 0) {
-                            bottomSheetPeek.setBackgroundColor(getResources().getColor(R.color.colorPrimary));
-                            mBottomSheetPeekTitle.setTextColor(getResources().getColor(R.color.colorAccent));
-                            mBottomSheetPeekDescription.setTextColor(getResources().getColor(R.color.colorAccent));
-
-                            locationFAB.animate().scaleX(0).scaleY(0).setDuration(300).start();
-                            locationFABHidden = true;
-                            isSlidingTop = true;
-                        }
-                        else
-                            isSlidingTop = false;
-                        changesApplied = true;
-                    }
-                }
-            }
-        });
-
+        bottomSheetPeek.setOnClickListener(bottomPanelBehaviour);
+        mButtonDeletePlace.setOnClickListener(bottomPanelBehaviour);
+        buttonAddPLaceImage.setOnClickListener(bottomPanelBehaviour);
+        mBottomSheetBehavior.setBottomSheetCallback(bottomPanelBehaviour);
         mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
 
     }
-
     private void setNavigationViewUserData(){
         if(currentUser != null){
             userNameTextView.setText(currentUser.getDisplayName());
@@ -223,6 +183,13 @@ public class MapActivity extends AppCompatActivity implements
 
             if(currentUser.getPhotoUrl() != null)
                 new GetUserImageTask().execute(currentUser.getPhotoUrl());
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if(mBottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED){
+            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
         }
     }
 
@@ -277,20 +244,25 @@ public class MapActivity extends AppCompatActivity implements
         long id = (long) marker.getTag();
         if(id != 0){
 
-            Place clickedPlace = null;
+            Place selectedPlace = null;
             for (Place p : places){
                 if(p.getId() == id) {
-                    clickedPlace = p;
+                    selectedPlace = p;
                     break;
                 }
             }
-            if(clickedPlace == null)
+            if(selectedPlace == null)
                 Toast.makeText(this, "Can`t find this place", Toast.LENGTH_SHORT).show();
             else
             {
-                mBottomSheetPeekTitle.setText(clickedPlace.getTitle());
-                mBottomSheetPeekDescription.setText(clickedPlace.getDescription());
+                if(!currentUser.getUid().equals(selectedPlace.getOwnerGoogleId()))
+                {
+                    mButtonDeletePlace.setVisibility(View.GONE);
+                }
+                mBottomSheetPeekTitle.setText(selectedPlace.getTitle());
+                mBottomSheetPeekDescription.setText(selectedPlace.getDescription());
                 mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+                mSelectedPlace = selectedPlace;
             }
         }
 
@@ -523,13 +495,47 @@ public class MapActivity extends AppCompatActivity implements
         Toast.makeText(this, placeEntity.getStatusCode().toString(), Toast.LENGTH_LONG).show();
     }
 
-    public void onRemovePlaceFinished(Boolean response){
+    public void onRemovePlaceFinished(Boolean response, long id){
         if(response){
-            // remove marker
+            removePlace(id);
         }
         else
         {
             Toast.makeText(this, "Can`t remove this place", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    public void tryToRemovePlace(){
+        if(mSelectedPlace != null){
+            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            new ServerRequests.DeletePlaceTask(this).execute(mSelectedPlace.getId());
+        }
+    }
+
+    private void removePlace(long id){
+        Marker selectedPlaceMarker = null;
+        for (Marker m : markers){
+            if((long)m.getTag() == id){
+                selectedPlaceMarker = m;
+                break;
+            }
+        }
+        Place selectedPlace = null;
+        for (Place p : places){
+            if(p.getId() == id){
+                selectedPlace = p;
+                break;
+            }
+        }
+
+        if(selectedPlaceMarker != null){
+            markers.remove(selectedPlaceMarker);
+            selectedPlaceMarker.remove();
+        }
+
+        if(selectedPlace != null){
+            places.remove(selectedPlace);
+            mSelectedPlace = null;
         }
     }
 

@@ -83,6 +83,7 @@ public class ServerRequests {
 
         private static final String TAG = "DeletePlaceTask";
         private MapActivity activity;
+        private long id;
 
         public DeletePlaceTask(MapActivity mapActivity){
             activity = mapActivity;
@@ -90,16 +91,17 @@ public class ServerRequests {
 
         @Override
         protected Boolean doInBackground(Long... longs) {
+            id = longs[0];
             RestTemplate template = new RestTemplate();
             template.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
             //ResponseEntity<Place> entity = null;
             Boolean response;
             try{
-                template.delete(Constants.URL.DELETE_PLACE(longs[0]));
+                template.delete(Constants.URL.DELETE_PLACE(id));
                 response = true;
             }
             catch (HttpClientErrorException|HttpServerErrorException e){
-                Log.w(TAG, "Failed to delete place by id: " + longs[0]);
+                Log.w(TAG, "Failed to delete place by id: " + id);
                 //entity = new ResponseEntity<>(e.getStatusCode());
                 response = false;
             }
@@ -108,7 +110,7 @@ public class ServerRequests {
 
         @Override
         protected void onPostExecute(Boolean response) {
-            activity.onRemovePlaceFinished(response);
+            activity.onRemovePlaceFinished(response, id);
         }
     }
 
