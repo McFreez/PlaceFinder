@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.widget.BottomSheetBehavior;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.NavigationView;
 import android.support.v4.app.ActivityCompat;
@@ -19,19 +20,10 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.android.volley.Cache;
-import com.android.volley.Network;
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.BasicNetwork;
-import com.android.volley.toolbox.DiskBasedCache;
-import com.android.volley.toolbox.HurlStack;
-import com.android.volley.toolbox.StringRequest;
 import com.arlib.floatingsearchview.FloatingSearchView;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
@@ -48,23 +40,24 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.LocationSource;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptor;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.Circle;
-import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.placefinder.DTO.Place;
 import com.placefinder.xslt.GeocodingResult;
 import com.placefinder.xslt.NetworkUtils;
 import com.placefinder.xslt.XSLTConverters;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 
 import de.hdodenhof.circleimageview.CircleImageView;
@@ -77,7 +70,7 @@ public class MapActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener ,
         NavigationView.OnNavigationItemSelectedListener,
-        LocationSource, LocationListener {
+        LocationSource, LocationListener, GoogleMap.OnMarkerClickListener {
 
     private static final int LOCATION_PERMISSIONS_REQUEST_CODE = 428;
     private final String LOG_TAG = "MapActivity";
@@ -92,6 +85,9 @@ public class MapActivity extends AppCompatActivity implements
     private DrawerLayout mDrawerLayout;
     private FloatingSearchView mFloatingSearchView;
     private NavigationView mNavigationView;
+    private BottomSheetBehavior mBottomSheetBehavior;
+    private TextView mBottomSheetPeekTitle;
+    private TextView mBottomSheetPeekDescription;
 
     private TextView userNameTextView;
     private TextView userEmailTextView;
@@ -101,6 +97,10 @@ public class MapActivity extends AppCompatActivity implements
     private FirebaseUser currentUser;
 
     private boolean isGoogleApiConnected = false;
+    private boolean isLoadingAllPlacesAroundUserStarted = false;
+
+    private List<Place> places = new ArrayList<>();
+    private List<Marker> markers = new ArrayList<>();
 
     //<editor-fold desc="Life cycle">
     @Override
@@ -128,6 +128,10 @@ public class MapActivity extends AppCompatActivity implements
         mapAuth = FirebaseAuth.getInstance();
         currentUser = mapAuth.getCurrentUser();
 
+        initControls();
+    }
+
+    private void initControls(){
         mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
 
         mFloatingSearchView = (FloatingSearchView) findViewById(R.id.floating_search_view);
@@ -147,6 +151,79 @@ public class MapActivity extends AppCompatActivity implements
         locationFAB = (FloatingActionButton) findViewById(R.id.fab_my_location);
         locationFAB.setOnClickListener(this);
 
+        configureBottomSheet();
+    }
+
+    private void configureBottomSheet(){
+        View bottomSheet = findViewById(R.id.bottom_sheet);
+        final RelativeLayout bottomSheetPeek = (RelativeLayout) bottomSheet.findViewById(R.id.bottom_sheet_peek);
+        mBottomSheetPeekTitle = (TextView) bottomSheet.findViewById(R.id.bottom_sheet_peek_title);
+        mBottomSheetPeekDescription = (TextView) findViewById(R.id.bottom_sheet_peek_details);
+        mBottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
+        mBottomSheetBehavior.setBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
+
+            private boolean changesApplied = true;
+            private int lastState = BottomSheetBehavior.STATE_COLLAPSED;
+            private boolean locationFABHidden = false;
+            private boolean isSlidingTop = true;
+
+            @Override
+            public void onStateChanged(@NonNull View bottomSheet, int newState) {
+                if(locationFABHidden && (newState == BottomSheetBehavior.STATE_COLLAPSED || newState == BottomSheetBehavior.STATE_HIDDEN)){
+                    locationFAB.animate().scaleX(1).scaleY(1).setDuration(300).start();
+                    locationFABHidden = false;
+                }
+
+                if(newState == BottomSheetBehavior.STATE_COLLAPSED || newState == BottomSheetBehavior.STATE_EXPANDED || newState == BottomSheetBehavior.STATE_HIDDEN){
+                    lastState = newState;
+                    if(newState == BottomSheetBehavior.STATE_COLLAPSED){
+                        bottomSheetPeek.setBackgroundColor(getResources().getColor(R.color.colorAccent));
+                        mBottomSheetPeekTitle.setTextColor(Color.BLACK);
+                        mBottomSheetPeekDescription.setTextColor(Color.GRAY);
+                    }
+
+                }
+                else if(newState == BottomSheetBehavior.STATE_DRAGGING){
+                    changesApplied = false;
+                }
+
+            }
+
+            @Override
+            public void onSlide(@NonNull View bottomSheet, float slideOffset) {
+                if(!isSlidingTop && slideOffset > 0)
+                    changesApplied = false;
+                if(!changesApplied) {
+                    if(lastState ==  BottomSheetBehavior.STATE_COLLAPSED){
+                        if(slideOffset > 0) {
+                            bottomSheetPeek.setBackgroundColor(getResources().getColor(R.color.colorPrimary));
+                            mBottomSheetPeekTitle.setTextColor(getResources().getColor(R.color.colorAccent));
+                            mBottomSheetPeekDescription.setTextColor(getResources().getColor(R.color.colorAccent));
+
+                            locationFAB.animate().scaleX(0).scaleY(0).setDuration(300).start();
+                            locationFABHidden = true;
+                            isSlidingTop = true;
+                        }
+                        else
+                            isSlidingTop = false;
+                        changesApplied = true;
+                    }
+                }
+            }
+        });
+
+        mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+
+    }
+
+    private void setNavigationViewUserData(){
+        if(currentUser != null){
+            userNameTextView.setText(currentUser.getDisplayName());
+            userEmailTextView.setText(currentUser.getEmail());
+
+            if(currentUser.getPhotoUrl() != null)
+                new GetUserImageTask().execute(currentUser.getPhotoUrl());
+        }
     }
 
     @Override
@@ -173,7 +250,9 @@ public class MapActivity extends AppCompatActivity implements
             return;
         }
         mMap = googleMap;
+        mMap.setOnMarkerClickListener(this);
         mMap.setOnMapLongClickListener(this);
+
         if (ActivityCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION) !=
                 PackageManager.PERMISSION_GRANTED &&
@@ -193,9 +272,37 @@ public class MapActivity extends AppCompatActivity implements
     }
 
     @Override
+    public boolean onMarkerClick(Marker marker) {
+
+        long id = (long) marker.getTag();
+        if(id != 0){
+
+            Place clickedPlace = null;
+            for (Place p : places){
+                if(p.getId() == id) {
+                    clickedPlace = p;
+                    break;
+                }
+            }
+            if(clickedPlace == null)
+                Toast.makeText(this, "Can`t find this place", Toast.LENGTH_SHORT).show();
+            else
+            {
+                mBottomSheetPeekTitle.setText(clickedPlace.getTitle());
+                mBottomSheetPeekDescription.setText(clickedPlace.getDescription());
+                mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+            }
+        }
+
+        return true;
+    }
+
+    @Override
     public void onMapLongClick(LatLng latLng) {
         Toast.makeText(this, "Run task", Toast.LENGTH_SHORT).show();
-        new GeolocationSearchTask().execute(NetworkUtils.buildUrl(latLng));
+        GeolocationSearchTask task = new GeolocationSearchTask();
+        task.location = latLng;
+        task.execute(NetworkUtils.buildUrl(latLng));
     }
 
     private void moveCamera(CameraUpdate update){
@@ -240,7 +347,6 @@ public class MapActivity extends AppCompatActivity implements
     //</editor-fold>
 
     //<editor-fold desc="User location">
-
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         if (requestCode == LOCATION_PERMISSIONS_REQUEST_CODE && grantResults.length == 2) {
@@ -293,6 +399,8 @@ public class MapActivity extends AppCompatActivity implements
         if (mLastLocation != null) {
             mLocationListener.onLocationChanged(mLastLocation);
             moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude()), 11));
+            if(!isLoadingAllPlacesAroundUserStarted)
+                loadAllPlacesAroundUser(new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude()));
         }
         if(mLocationRequest == null) {
             mLocationRequest = LocationRequest.create()
@@ -307,6 +415,9 @@ public class MapActivity extends AppCompatActivity implements
     @Override
     public void onLocationChanged(Location location) {
         mLocationListener.onLocationChanged(location);
+        mLastLocation = location;
+        if(!isLoadingAllPlacesAroundUserStarted)
+            loadAllPlacesAroundUser(new LatLng(location.getLatitude(), location.getLongitude()));
     }
 
     @Override
@@ -322,19 +433,7 @@ public class MapActivity extends AppCompatActivity implements
 
     //</editor-fold>
 
-    //<editor-fold desc="Google user data">
-    private void setNavigationViewUserData(){
-        if(currentUser != null){
-            userNameTextView.setText(currentUser.getDisplayName());
-            userEmailTextView.setText(currentUser.getEmail());
-
-            if(currentUser.getPhotoUrl() != null)
-                new GetUserImageTask().execute(currentUser.getPhotoUrl());
-        }
-    }
-    //</editor-fold>
-
-    private void runConverter(String response) {
+    private void runConverter(String response, LatLng exactLocation) {
         response = XSLTConverters.xsl(this, response);
 
         if (response == null) {
@@ -345,16 +444,14 @@ public class MapActivity extends AppCompatActivity implements
         List<GeocodingResult> results = XSLTConverters.getResults(response);
 
         if (results == null) {
-            Toast.makeText(this, "Failed to represent converted data", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(this, "Failed to represent converted data", Toast.LENGTH_SHORT).show();
             return;
         } else if (results.size() == 0) {
-            Toast.makeText(this, "No data", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(this, "No data", Toast.LENGTH_SHORT).show();
             return;
         } else {
-            Toast.makeText(this, "Place found", Toast.LENGTH_SHORT).show();
-            mMap.addMarker(new MarkerOptions()
-                    .position(new LatLng(results.get(0).getLatitude(), results.get(0).getLongitude()))
-                    .title(results.get(0).getAdress()));
+            //Toast.makeText(this, "Place found", Toast.LENGTH_SHORT).show();
+            openDialog(results.get(0).getAdress(), exactLocation);
         }
     }
 
@@ -371,13 +468,91 @@ public class MapActivity extends AppCompatActivity implements
                 signOut();
                 return true;
             case R.id.get_place:
-                //new TestRequestToServer.GetOnePlace().execute(1);
-                //testConnectionToServerMethod();
+/*                Place place = new Place();
+                place.setTitle("newTitle");
+                place.setDescription("new Description");
+                //place.setOwnerGoogleId(currentUser.getUid());
+                place.setLatitude(55.3234);
+                place.setLongitude(656.234);
+
+                ServerRequests.PostPlaceTask postPlaceTask = new ServerRequests.PostPlaceTask(this);
+                postPlaceTask.execute(place);*/
+                /*ServerRequests.DeletePlaceTask deletePlaceTask = new ServerRequests.DeletePlaceTask(this);
+                deletePlaceTask.execute((long) 7);*/
+                /*locationFAB.animate().rotationX(10).setDuration(300).start();*/
+                mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
                 return false;
             default:
                 return true;
         }
 
+    }
+    //</editor-fold>
+
+    //<editor-fold desc="Places visualisation">
+    private void openDialog(String fullAddress, LatLng location){
+        PlaceInfoDialogFragment fragment = new PlaceInfoDialogFragment();
+        fragment.fullAddress = fullAddress;
+        fragment.latitude = location.latitude;
+        fragment.longitude = location.longitude;
+        fragment.creatorUid = currentUser.getUid();
+
+        fragment.show(getSupportFragmentManager(), PlaceInfoDialogFragment.TAG);
+    }
+
+    public void addPlaceDialogResult(Place place){
+        Toast.makeText(this, place.getTitle(), Toast.LENGTH_LONG).show();
+        ServerRequests.PostPlaceTask postPlaceTask = new ServerRequests.PostPlaceTask(this);
+        postPlaceTask.execute(place);
+    }
+
+    public void onPlaceSaveFinished(ResponseEntity<Place> placeEntity){
+        if(placeEntity.getBody() == null){
+            Toast.makeText(this, "Failed to save place, code: " + placeEntity.getStatusCode().toString(), Toast.LENGTH_LONG).show();
+        }
+        else
+        {
+            addPlace(placeEntity.getBody());
+            mBottomSheetPeekTitle.setText(placeEntity.getBody().getTitle());
+            mBottomSheetPeekDescription.setText(placeEntity.getBody().getDescription());
+            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        }
+    }
+
+    public void showToast(ResponseEntity<Place> placeEntity){
+        Toast.makeText(this, placeEntity.getStatusCode().toString(), Toast.LENGTH_LONG).show();
+    }
+
+    public void onRemovePlaceFinished(Boolean response){
+        if(response){
+            // remove marker
+        }
+        else
+        {
+            Toast.makeText(this, "Can`t remove this place", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void addPlace(Place place){
+        places.add(place);
+        Marker marker = mMap.addMarker(new MarkerOptions()
+                .position(new LatLng(place.getLatitude(), place.getLongitude()))
+                .title(place.getTitle()));
+        marker.setTag(place.getId());
+        markers.add(marker);
+    }
+
+    public void onGetAllAroundPlacesFinished(ResponseEntity<List<Place>> placeEntity){
+        if(placeEntity.getStatusCode() == HttpStatus.OK){
+            for(Place p : placeEntity.getBody()){
+                addPlace(p);
+            }
+        }
+    }
+
+    private void loadAllPlacesAroundUser(LatLng location){
+        new ServerRequests.GetAllPlacesAroundTask(this).execute(location);
+        isLoadingAllPlacesAroundUserStarted = true;
     }
     //</editor-fold>
 
@@ -407,6 +582,7 @@ public class MapActivity extends AppCompatActivity implements
 
     public class GeolocationSearchTask extends AsyncTask<URL, Void, String> {
 
+        public LatLng location;
         @Override
         protected String doInBackground(URL... params) {
             URL searchUrl = params[0];
@@ -428,8 +604,8 @@ public class MapActivity extends AppCompatActivity implements
 
             if (result != null && !result.equals("")) {
                 // COMPLETED (17) Call showJsonDataView if we have valid, non-null results
-                Toast.makeText(MapActivity.this, "Data caught", Toast.LENGTH_SHORT).show();
-                runConverter(result);
+                //Toast.makeText(MapActivity.this, "Data caught", Toast.LENGTH_SHORT).show();
+                runConverter(result, location);
             } else {
                 // COMPLETED (16) Call showErrorMessage if the result is null in onPostExecute
                 Toast.makeText(MapActivity.this, "Fail, no data", Toast.LENGTH_SHORT).show();
@@ -437,6 +613,5 @@ public class MapActivity extends AppCompatActivity implements
             }
         }
     }
-
 
 }

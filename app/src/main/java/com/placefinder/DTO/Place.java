@@ -9,6 +9,12 @@ public class Place {
 
     private String ownerGoogleId;
 
+    private String description;
+
+    private double latitude;
+
+    private double longitude;
+
     public Place() {
 
     }
@@ -35,6 +41,30 @@ public class Place {
 
     public void setOwnerGoogleId(String ownerGoogleId) {
         this.ownerGoogleId = ownerGoogleId;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(double latitude) {
+        this.latitude = latitude;
+    }
+
+    public double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(double longitude) {
+        this.longitude = longitude;
     }
 
 }

@@ -19,7 +19,8 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:colorControlNormal">@color/colorPrimarySemiTransparent</item>
+        <item name="android:colorControlActivated">@color/colorPrimary</item>
         <item name="android:windowTranslucentStatus">true</item>
     </style>
-
 </resources>

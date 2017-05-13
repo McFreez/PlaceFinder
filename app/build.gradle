@@ -36,10 +36,9 @@ dependencies {
     compile 'com.google.android.gms:play-services:10.2.1'
     compile 'com.android.support:design:25.3.1'
     compile 'de.hdodenhof:circleimageview:2.1.0'
-    // https://mvnrepository.com/artifact/com.mcxiaoke.volley/library
-    compile group: 'com.mcxiaoke.volley', name: 'library', version: '1.0.19'
     compile 'com.fasterxml.jackson.core:jackson-databind:2.7.2'
-    compile 'org.springframework.android:spring-android-rest-template:1.0.1.RELEASE'
+    // https://mvnrepository.com/artifact/org.springframework.android/spring-android-rest-template
+    compile group: 'org.springframework.android', name: 'spring-android-rest-template', version: '2.0.0.M3'
     testCompile 'junit:junit:4.12'
 }
 apply plugin: 'com.google.gms.google-services'

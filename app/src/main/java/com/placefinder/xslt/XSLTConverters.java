@@ -23,9 +23,6 @@ import javax.xml.transform.*;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 
-/**
- * Created by Dima on 09.04.2017.
- */
 
 public class XSLTConverters {
 

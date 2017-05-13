@@ -19,15 +19,23 @@ public class TestRequestToServer {
 
     public static class GetOnePlace extends AsyncTask<Integer, Void, String>{
 
+        public int value;
         @Override
         protected String doInBackground(Integer... integers) {
 
             RestTemplate template = new RestTemplate();
             template.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
-
+            ResponseEntity<Place> entity = null;
             try {
-                ResponseEntity<Place> entity = template.getForEntity("http://192.168.0.15:8080/places/3", Place.class);
-
+                Place place = new Place();
+                place.setId(1);
+                place.setDescription("first place description");
+                place.setLatitude(55.3);
+                place.setLongitude(45.2);
+                place.setOwnerGoogleId("dDS4fsd5GS7SDG");
+                place.setTitle("FIRST2 PLACE");
+                entity = template.postForEntity("http://192.168.0.15:8080/places", place, Place.class);
+                //entity = template.getForEntity("http://192.168.0.15:8080/places/1", Place.class);
             }catch (HttpClientErrorException e){
                 e.printStackTrace();
                 HttpStatus status =  e.getStatusCode();

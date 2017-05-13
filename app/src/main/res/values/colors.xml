@@ -2,7 +2,9 @@
 <resources>
     <color name="colorPrimary">#1976d2</color>
     <color name="colorPrimaryDark">#1565C0</color>
+    <color name="colorPrimarySemiTransparent">#661976d2</color>
     <color name="colorAccent">#ffffff</color>
+    <color name="colorViewBackground">#e1e1e1</color>
     <color name="colorFABackground">#FFFFFF</color>
     <color name="colorAccuracy">#801976d2</color>
 </resources>

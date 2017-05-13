@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">PlaceFinder</string>
     <string name="web_client_id">795137021022-9tlhgutj34nis01voccrrk8vs8hjpjm3.apps.googleusercontent.com</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
 </resources>
