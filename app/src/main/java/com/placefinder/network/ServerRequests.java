@@ -10,6 +10,7 @@ import com.placefinder.MapActivity;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.HttpClientErrorException;
@@ -103,7 +104,6 @@ public class ServerRequests {
             }
             catch (HttpClientErrorException|HttpServerErrorException e){
                 Log.w(TAG, "Failed to delete place by id: " + id);
-                //entity = new ResponseEntity<>(e.getStatusCode());
                 response = false;
             }
             return response;
@@ -144,6 +144,10 @@ public class ServerRequests {
                 Log.w(TAG, "Failed to get places in location latitude: " + userLocation.latitude + " longitude: " + userLocation.longitude);
                 entity = new ResponseEntity<>(e.getStatusCode());
                 //response = false;
+            }
+            catch (Exception e){
+                Log.w(TAG, "Failed to get places in location latitude: " + userLocation.latitude + " longitude: " + userLocation.longitude);
+                entity = new ResponseEntity<>(HttpStatus.BAD_REQUEST);
             }
             return entity;
         }

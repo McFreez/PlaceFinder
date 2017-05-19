@@ -109,6 +109,14 @@ public class BottomPanelBehaviour extends BottomSheetBehavior.BottomSheetCallbac
 
             }
             break;
+            case R.id.button_build_route:{
+                activity.buildRouteToCurrentPlace();
+            }
+            break;
+            case R.id.button_clear_route:{
+                activity.clearCurrentRoute();
+            }
+            break;
         }
 
     }

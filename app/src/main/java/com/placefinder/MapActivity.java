@@ -41,13 +41,22 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.LocationSource;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.JointType;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.vision.text.Line;
+import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.maps.model.RoundCap;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.maps.android.PolyUtil;
+import com.google.maps.model.DirectionsResult;
+import com.google.maps.model.DirectionsStep;
 import com.placefinder.DTO.Place;
+import com.placefinder.network.GoogleApiRequests;
+import com.placefinder.network.ServerRequests;
 import com.placefinder.xslt.GeocodingResult;
 import com.placefinder.xslt.NetworkUtils;
 import com.placefinder.xslt.XSLTConverters;
@@ -91,6 +100,8 @@ public class MapActivity extends AppCompatActivity implements
     private TextView mBottomSheetPeekTitle;
     private TextView mBottomSheetPeekDescription;
     private LinearLayout mButtonDeletePlace;
+    private LinearLayout mButtonClearRoute;
+    private LinearLayout mButtonBuildRouteToPlace;
 
     private TextView userNameTextView;
     private TextView userEmailTextView;
@@ -162,7 +173,10 @@ public class MapActivity extends AppCompatActivity implements
         View bottomSheet = findViewById(R.id.bottom_sheet);
         RelativeLayout bottomSheetPeek = (RelativeLayout) bottomSheet.findViewById(R.id.bottom_sheet_peek);
         mButtonDeletePlace = (LinearLayout) bottomSheet.findViewById(R.id.button_delete_place);
+        mButtonClearRoute = (LinearLayout) bottomSheet.findViewById(R.id.button_clear_route);
+        mButtonBuildRouteToPlace = (LinearLayout) bottomSheet.findViewById(R.id.button_build_route);
         LinearLayout buttonAddPLaceImage = (LinearLayout) bottomSheet.findViewById(R.id.button_add_place_image);
+
         mBottomSheetPeekTitle = (TextView) bottomSheet.findViewById(R.id.bottom_sheet_peek_title);
         mBottomSheetPeekDescription = (TextView) findViewById(R.id.bottom_sheet_peek_details);
         mBottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
@@ -171,11 +185,26 @@ public class MapActivity extends AppCompatActivity implements
 
         bottomSheetPeek.setOnClickListener(bottomPanelBehaviour);
         mButtonDeletePlace.setOnClickListener(bottomPanelBehaviour);
+        mButtonClearRoute.setOnClickListener(bottomPanelBehaviour);
+        mButtonClearRoute.setVisibility(View.GONE);
+        mButtonBuildRouteToPlace.setOnClickListener(bottomPanelBehaviour);
         buttonAddPLaceImage.setOnClickListener(bottomPanelBehaviour);
+
         mBottomSheetBehavior.setBottomSheetCallback(bottomPanelBehaviour);
         mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
 
     }
+
+    private void showBuildRouteButton(){
+        mButtonClearRoute.setVisibility(View.GONE);
+        mButtonBuildRouteToPlace.setVisibility(View.VISIBLE);
+    }
+
+    private void showClearRouteButton(){
+        mButtonBuildRouteToPlace.setVisibility(View.GONE);
+        mButtonClearRoute.setVisibility(View.VISIBLE);
+    }
+
     private void setNavigationViewUserData(){
         if(currentUser != null){
             userNameTextView.setText(currentUser.getDisplayName());
@@ -202,6 +231,8 @@ public class MapActivity extends AppCompatActivity implements
     protected void onStart() {
         mGoogleApiClient.connect();
         super.onStart();
+
+        subscribeToPlacesUpdates();
     }
 
     protected void onStop() {
@@ -263,6 +294,13 @@ public class MapActivity extends AppCompatActivity implements
                 mBottomSheetPeekDescription.setText(selectedPlace.getDescription());
                 mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
                 mSelectedPlace = selectedPlace;
+
+                if(mSelectedPlace == Route.placeDestination){
+                    showClearRouteButton();
+                }
+                else {
+                    showBuildRouteButton();
+                }
             }
         }
 
@@ -485,6 +523,7 @@ public class MapActivity extends AppCompatActivity implements
         else
         {
             addPlace(placeEntity.getBody());
+            mSelectedPlace = placeEntity.getBody();
             mBottomSheetPeekTitle.setText(placeEntity.getBody().getTitle());
             mBottomSheetPeekDescription.setText(placeEntity.getBody().getDescription());
             mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
@@ -554,6 +593,10 @@ public class MapActivity extends AppCompatActivity implements
                 addPlace(p);
             }
         }
+        else
+        {
+            Toast.makeText(this, "Cannot load places " + placeEntity.getStatusCode(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void loadAllPlacesAroundUser(LatLng location){
@@ -561,6 +604,75 @@ public class MapActivity extends AppCompatActivity implements
         isLoadingAllPlacesAroundUserStarted = true;
     }
     //</editor-fold>
+
+    public void buildRouteToCurrentPlace(){
+        clearCurrentRoute();
+        mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        Route.placeDestination = mSelectedPlace;
+        new GoogleApiRequests.DirectionTask(this)
+                .execute(new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude()),
+                        new LatLng(mSelectedPlace.getLatitude(), mSelectedPlace.getLongitude()));
+
+    }
+
+    public void onRouteBuildingFinished(DirectionsResult result){
+        if(result != null){
+            PolylineOptions po1 = new PolylineOptions().geodesic(true).color(Color.BLUE).width(20);
+            PolylineOptions po2 = new PolylineOptions().geodesic(true).color(getResources().getColor(R.color.colorPrimary)).width(13);
+            po1.add(convertLatLngType(result.routes[0].legs[0].startLocation));
+            po2.add(convertLatLngType(result.routes[0].legs[0].startLocation));
+            DirectionsStep[] steps = result.routes[0].legs[0].steps;
+            for(int i = 0; i < steps.length; i++) {
+                List<LatLng> points = PolyUtil.decode(steps[i].polyline.getEncodedPath());
+                for(int j = 0; j < points.size(); j++){
+                    po1.add(points.get(j));
+                    po2.add(points.get(j));
+                }
+            }
+            po1.add(convertLatLngType(result.routes[0].legs[0].endLocation));
+            po2.add(convertLatLngType(result.routes[0].legs[0].endLocation));
+
+            po1.endCap(new RoundCap());
+            po1.startCap(new RoundCap());
+            po1.jointType(JointType.ROUND);
+            po2.endCap(new RoundCap());
+            po2.startCap(new RoundCap());
+            po2.jointType(JointType.ROUND);
+
+            Route.outerLine = mMap.addPolyline(po1);
+            Route.innerLine = mMap.addPolyline(po2);
+
+            showClearRouteButton();
+        }
+        else
+            Toast.makeText(this, "Cannot build route", Toast.LENGTH_SHORT).show();
+    }
+
+    private LatLng convertLatLngType(com.google.maps.model.LatLng latLng){
+        return new LatLng(latLng.lat, latLng.lng);
+    }
+
+    public void clearCurrentRoute(){
+        mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+
+        if(Route.outerLine != null)
+            Route.outerLine.remove();
+        if(Route.innerLine != null)
+            Route.innerLine.remove();
+
+        Route.outerLine = null;
+        Route.innerLine = null;
+        Route.placeDestination = null;
+
+        showBuildRouteButton();
+    }
+
+    private void subscribeToPlacesUpdates(){
+        FirebaseMessaging.getInstance().subscribeToTopic("places");
+        Toast.makeText(this, "Places subscription added", Toast.LENGTH_SHORT).show();
+        String token = FirebaseInstanceId.getInstance().getToken();
+        Log.i(LOG_TAG, "token is: " + token);
+    }
 
     public class GetUserImageTask extends AsyncTask<Uri, Void, Bitmap>{
 
