@@ -1,6 +1,10 @@
 package com.placefinder;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -57,6 +61,7 @@ import com.google.maps.model.DirectionsStep;
 import com.placefinder.DTO.Place;
 import com.placefinder.network.GoogleApiRequests;
 import com.placefinder.network.ServerRequests;
+import com.placefinder.notification.PlaceFinderFirebaseMessagingService;
 import com.placefinder.xslt.GeocodingResult;
 import com.placefinder.xslt.NetworkUtils;
 import com.placefinder.xslt.XSLTConverters;
@@ -117,6 +122,41 @@ public class MapActivity extends AppCompatActivity implements
     private List<Marker> markers = new ArrayList<>();
     private Place mSelectedPlace;
 
+    private BroadcastReceiver placesChangeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Bundle extras = intent.getExtras();
+            if(extras != null) {
+                if(extras.containsKey("action")) {
+                    String action = extras.getString("action");
+                    if(action.equals(PlaceFinderFirebaseMessagingService.actionPlaceDeleted)){
+                        if(extras.containsKey("id")) {
+                            removePlace(Long.valueOf(extras.getString("id")));
+                        }
+                    }
+                    else
+                        if(action.equals(PlaceFinderFirebaseMessagingService.actionPlaceAdded)) {
+                            Place place = new Place();
+                            if (extras.containsKey("id"))
+                                place.setId(Long.valueOf(extras.getString("id")));
+                            if (extras.containsKey("title"))
+                                place.setTitle(extras.getString("title"));
+                            if (extras.containsKey("ownerGoogleId"))
+                                place.setOwnerGoogleId(extras.getString("ownerGoogleId"));
+                            if (extras.containsKey("description"))
+                                place.setDescription(extras.getString("description"));
+                            if (extras.containsKey("latitude"))
+                                place.setLatitude(Double.valueOf(extras.getString("latitude")));
+                            if (extras.containsKey("longitude"))
+                                place.setLongitude(Double.valueOf(extras.getString("longitude")));
+
+                            addPlace(place);
+                        }
+                }
+            }
+        }
+    };
+
     //<editor-fold desc="Life cycle">
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -144,6 +184,8 @@ public class MapActivity extends AppCompatActivity implements
         currentUser = mapAuth.getCurrentUser();
 
         initControls();
+
+        registerReceiver(placesChangeReceiver, new IntentFilter(PlaceFinderFirebaseMessagingService.INTENT_FILTER));
     }
 
     private void initControls(){
@@ -217,8 +259,13 @@ public class MapActivity extends AppCompatActivity implements
 
     @Override
     public void onBackPressed() {
-        if(mBottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED){
+        if(Route.innerLine != null && Route.outerLine != null && Route.placeDestination != null)
+            clearCurrentRoute();
+        else if(mBottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED){
             mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        }
+        else if(mBottomSheetBehavior.getState() == BottomSheetBehavior.STATE_COLLAPSED){
+            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         }
     }
 
@@ -239,6 +286,14 @@ public class MapActivity extends AppCompatActivity implements
         mGoogleApiClient.disconnect();
         super.onStop();
     }
+
+    @Override
+    protected void onDestroy() {
+        unregisterReceiver(placesChangeReceiver);
+        super.onDestroy();
+
+    }
+
     //</editor-fold>
 
     //<editor-fold desc="Map">
@@ -653,7 +708,9 @@ public class MapActivity extends AppCompatActivity implements
     }
 
     public void clearCurrentRoute(){
-        mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        if(mBottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED){
+            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        }
 
         if(Route.outerLine != null)
             Route.outerLine.remove();

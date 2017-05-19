@@ -17,18 +17,33 @@ import com.google.firebase.messaging.RemoteMessage;
 import com.placefinder.MapActivity;
 import com.placefinder.R;
 
+import java.util.Map;
+
 public class PlaceFinderFirebaseMessagingService extends FirebaseMessagingService {
 
     private static final String TAG = "PlaceFinderFirebaseMessagingService";
+    public static final String actionPlaceAdded = "added";
+    public static final String actionPlaceDeleted = "deleted";
+
+    public static final String INTENT_FILTER = "INTENT_FILTER";
 
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
-        sendNotification(remoteMessage.getNotification().getBody(), remoteMessage.getNotification().getTitle());
+        if(remoteMessage.getNotification() != null)
+            sendNotification(remoteMessage.getNotification().getBody(), remoteMessage.getNotification().getTitle());
+        if(remoteMessage.getData() != null) {
+            Intent intent = new Intent(INTENT_FILTER);
+            for (Map.Entry<String, String> item : remoteMessage.getData().entrySet()) {
+                intent.putExtra(item.getKey(), item.getValue());
+            }
+            sendBroadcast(intent);
+        }
     }
 
     private void sendNotification(String messageBody, String messageTitle) {
         Intent intent = new Intent(this, MapActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0 /*Request code */, intent, PendingIntent.FLAG_UPDATE_CURRENT);
 
         Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);

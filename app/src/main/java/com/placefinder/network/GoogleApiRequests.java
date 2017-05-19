@@ -14,8 +14,6 @@ import com.google.maps.model.TravelMode;
 import com.placefinder.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class GoogleApiRequests {
