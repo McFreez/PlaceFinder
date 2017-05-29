@@ -30,17 +30,23 @@ dependencies {
     androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    compile 'com.github.arimorty:floatingsearchview:2.0.4'
+
+
     compile 'com.android.support:appcompat-v7:25.3.1'
-    compile 'com.android.support.constraint:constraint-layout:1.0.1'
     compile 'com.google.android.gms:play-services:10.2.1'
     compile 'com.google.maps:google-maps-services:0.1.20'
     compile 'com.google.maps.android:android-maps-utils:0.4'
     compile 'com.android.support:design:25.3.1'
+
+    compile 'com.android.support.constraint:constraint-layout:1.0.1'
     compile 'de.hdodenhof:circleimageview:2.1.0'
+    compile 'com.github.arimorty:floatingsearchview:2.0.4'
+    compile 'com.android.support:recyclerview-v7:25.3.1'
+
+    compile 'com.google.firebase:firebase-storage:10.2.1'
     compile 'com.fasterxml.jackson.core:jackson-databind:2.7.2'
-    // https://mvnrepository.com/artifact/org.springframework.android/spring-android-rest-template
     compile group: 'org.springframework.android', name: 'spring-android-rest-template', version: '2.0.0.M3'
+
     testCompile 'junit:junit:4.12'
 }
 apply plugin: 'com.google.gms.google-services'

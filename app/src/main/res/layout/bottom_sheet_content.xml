@@ -2,22 +2,17 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/bottom_sheet"
+    android:id="@+id/bottom_sheet_content"
     android:layout_width="match_parent"
-    android:layout_height="400dp"
+    android:layout_height="match_parent"
     android:orientation="vertical"
-    android:outlineProvider="bounds"
-    android:elevation="5dp"
-    android:paddingTop="1dp"
-    app:behavior_hideable="true"
-    app:behavior_peekHeight="100dp"
-    app:layout_behavior="android.support.design.widget.BottomSheetBehavior">
+    android:outlineProvider="bounds"    >
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:background="@color/colorViewBackground">
+        android:background="@android:color/white">
 
         <RelativeLayout
             android:id="@+id/bottom_sheet_peek"
@@ -32,7 +27,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                tools:text="Title of place"
+                android:text="Title of place"
                 android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large" />
 
             <TextView
@@ -40,9 +35,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_below="@id/bottom_sheet_peek_title"
-                tools:text="Description of place"
-                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Small"
-                android:textColor="@color/cast_expanded_controller_ad_label_background_color" />
+                android:text="Description of place"
+                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Small" />
         </RelativeLayout>
         <LinearLayout
             android:layout_width="match_parent"
@@ -155,20 +149,56 @@
             </LinearLayout>
 
         </LinearLayout>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/colorViewBackground"/>
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:background="@color/colorAccent"
-            android:elevation="4dp"
-            android:layout_margin="16dp">
+            android:layout_height="wrap_content"
+
+            android:orientation="vertical"
+            android:background="@color/colorAccent">
 
             <TextView
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:gravity="center"
-                android:text="Bottom sheet content"
-                android:textColor="@android:color/black" />
+                android:layout_height="wrap_content"
+                android:gravity="start|top"
+                android:text="Comments"
+                android:layout_marginTop="16dp"
+                android:layout_marginStart="16dp"
+                android:textColor="@android:color/darker_gray" />
+            <android.support.v7.widget.RecyclerView
+                android:id="@+id/rv_comments"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+            </android.support.v7.widget.RecyclerView>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/colorAccent"
+            android:orientation="vertical"
+            android:theme="@style/EditTextTheme">
+
+            <View
+                android:background="@color/colorViewBackground"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"/>
+
+            <EditText
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:layout_marginEnd="24dp"
+                android:layout_marginStart="24dp"
+                android:layout_marginTop="8dp"
+                android:background="@android:color/transparent"
+                android:hint="Input comment"
+                android:imeOptions="actionSend"
+                android:textStyle="italic" />
         </LinearLayout>
     </LinearLayout>
 

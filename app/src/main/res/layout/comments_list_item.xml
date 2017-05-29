@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <de.hdodenhof.circleimageview.CircleImageView
+        android:id="@+id/comment_user_image"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/cheese_3" />
+
+    <LinearLayout
+        android:id="@+id/comment_content"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginLeft="16dp">
+
+        <TextView
+            android:id="@+id/comment_user_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            tools:text="Author name"
+            android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+            android:textStyle="bold|italic" />
+
+        <TextView
+            android:id="@+id/comment_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            tools:text="Written comment" />
+
+    </LinearLayout>
+
+    <android.support.v7.widget.AppCompatImageButton
+        android:id="@+id/comment_delete_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/ic_delete_gray_24dp"
+        android:background="?attr/selectableItemBackgroundBorderless"/>
+
+</LinearLayout>

@@ -1,4 +1,4 @@
-package com.placefinder;
+package com.placefinder.DTO;
 
 
 import com.google.android.gms.maps.model.Polyline;

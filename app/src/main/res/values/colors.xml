@@ -7,4 +7,5 @@
     <color name="colorViewBackground">#e1e1e1</color>
     <color name="colorFABackground">#FFFFFF</color>
     <color name="colorAccuracy">#801976d2</color>
+    <color name="colorViewPagerBackground">#40000000</color>
 </resources>

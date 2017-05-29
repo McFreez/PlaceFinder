@@ -12,15 +12,20 @@ import android.graphics.Color;
 import android.location.Location;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.design.widget.BottomSheetBehavior;
+import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.NavigationView;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.view.ViewPager;
 import android.support.v4.widget.DrawerLayout;
+import android.support.v4.widget.NestedScrollView;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
@@ -51,17 +56,29 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.maps.model.RoundCap;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 import com.google.maps.android.PolyUtil;
 import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.DirectionsStep;
+import com.placefinder.DTO.Comment;
+import com.placefinder.DTO.Photo;
 import com.placefinder.DTO.Place;
+import com.placefinder.DTO.Route;
+import com.placefinder.adapters.CommentsAdapter;
+import com.placefinder.adapters.ItemPagerAdapter;
 import com.placefinder.network.GoogleApiRequests;
 import com.placefinder.network.ServerRequests;
 import com.placefinder.notification.PlaceFinderFirebaseMessagingService;
+import com.placefinder.placedetailspanel.BottomSheetBehaviorGoogleMapsLike;
+import com.placefinder.placedetailspanel.BottomPanelBehaviour;
+import com.placefinder.placedetailspanel.MergedAppBarLayoutBehavior;
 import com.placefinder.xslt.GeocodingResult;
 import com.placefinder.xslt.NetworkUtils;
 import com.placefinder.xslt.XSLTConverters;
@@ -69,12 +86,15 @@ import com.placefinder.xslt.XSLTConverters;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
@@ -97,16 +117,18 @@ public class MapActivity extends AppCompatActivity implements
     private Location mLastLocation;
     private LocationRequest mLocationRequest;
     private OnLocationChangedListener mLocationListener;
+    private ItemPagerAdapter mViewPagerAdapter;
 
     private DrawerLayout mDrawerLayout;
     private FloatingSearchView mFloatingSearchView;
     private NavigationView mNavigationView;
-    private BottomSheetBehavior mBottomSheetBehavior;
+    private BottomSheetBehaviorGoogleMapsLike mBottomSheetBehaviour;
     private TextView mBottomSheetPeekTitle;
     private TextView mBottomSheetPeekDescription;
     private LinearLayout mButtonDeletePlace;
     private LinearLayout mButtonClearRoute;
     private LinearLayout mButtonBuildRouteToPlace;
+    private NestedScrollView mBottomSheet;
 
     private TextView userNameTextView;
     private TextView userEmailTextView;
@@ -114,6 +136,8 @@ public class MapActivity extends AppCompatActivity implements
 
     private FirebaseAuth mapAuth;
     private FirebaseUser currentUser;
+    private StorageReference mImageRef;
+    private StorageReference mUserImageRef;
 
     private boolean isGoogleApiConnected = false;
     private boolean isLoadingAllPlacesAroundUserStarted = false;
@@ -183,6 +207,11 @@ public class MapActivity extends AppCompatActivity implements
         mapAuth = FirebaseAuth.getInstance();
         currentUser = mapAuth.getCurrentUser();
 
+        FirebaseStorage storage = FirebaseStorage.getInstance();
+        StorageReference storageRef = storage.getReference(/*"gs://placefinder-65616.appspot.com/"*/);
+        mImageRef = storageRef.child("images");
+        mUserImageRef = storageRef.child("userImages");
+
         initControls();
 
         registerReceiver(placesChangeReceiver, new IntentFilter(PlaceFinderFirebaseMessagingService.INTENT_FILTER));
@@ -212,18 +241,20 @@ public class MapActivity extends AppCompatActivity implements
     }
 
     private void configureBottomSheet(){
-        View bottomSheet = findViewById(R.id.bottom_sheet);
-        RelativeLayout bottomSheetPeek = (RelativeLayout) bottomSheet.findViewById(R.id.bottom_sheet_peek);
-        mButtonDeletePlace = (LinearLayout) bottomSheet.findViewById(R.id.button_delete_place);
-        mButtonClearRoute = (LinearLayout) bottomSheet.findViewById(R.id.button_clear_route);
-        mButtonBuildRouteToPlace = (LinearLayout) bottomSheet.findViewById(R.id.button_build_route);
-        LinearLayout buttonAddPLaceImage = (LinearLayout) bottomSheet.findViewById(R.id.button_add_place_image);
+        mBottomSheet = (NestedScrollView) findViewById(R.id.bottom_sheet);
+        View bottomSheetContent = findViewById(R.id.bottom_sheet_content);
 
-        mBottomSheetPeekTitle = (TextView) bottomSheet.findViewById(R.id.bottom_sheet_peek_title);
+        RelativeLayout bottomSheetPeek = (RelativeLayout) bottomSheetContent.findViewById(R.id.bottom_sheet_peek);
+        mButtonDeletePlace = (LinearLayout) bottomSheetContent.findViewById(R.id.button_delete_place);
+        mButtonClearRoute = (LinearLayout) bottomSheetContent.findViewById(R.id.button_clear_route);
+        mButtonBuildRouteToPlace = (LinearLayout) bottomSheetContent.findViewById(R.id.button_build_route);
+        LinearLayout buttonAddPLaceImage = (LinearLayout) bottomSheetContent.findViewById(R.id.button_add_place_image);
+
+        mBottomSheetPeekTitle = (TextView) bottomSheetContent.findViewById(R.id.bottom_sheet_peek_title);
         mBottomSheetPeekDescription = (TextView) findViewById(R.id.bottom_sheet_peek_details);
-        mBottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
+        mBottomSheetBehaviour = BottomSheetBehaviorGoogleMapsLike.from(mBottomSheet);
 
-        BottomPanelBehaviour bottomPanelBehaviour = new BottomPanelBehaviour(this, mBottomSheetPeekTitle, mBottomSheetPeekDescription, bottomSheetPeek, locationFAB, mBottomSheetBehavior);
+        BottomPanelBehaviour bottomPanelBehaviour = new BottomPanelBehaviour(this, mBottomSheetPeekTitle, mBottomSheetPeekDescription, bottomSheetPeek, locationFAB, mBottomSheetBehaviour, mFloatingSearchView);
 
         bottomSheetPeek.setOnClickListener(bottomPanelBehaviour);
         mButtonDeletePlace.setOnClickListener(bottomPanelBehaviour);
@@ -232,8 +263,44 @@ public class MapActivity extends AppCompatActivity implements
         mButtonBuildRouteToPlace.setOnClickListener(bottomPanelBehaviour);
         buttonAddPLaceImage.setOnClickListener(bottomPanelBehaviour);
 
-        mBottomSheetBehavior.setBottomSheetCallback(bottomPanelBehaviour);
-        mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        mBottomSheetBehaviour.addBottomSheetCallback(bottomPanelBehaviour);
+
+        AppBarLayout mergedAppBarLayout = (AppBarLayout) findViewById(R.id.merged_appbarlayout);
+        MergedAppBarLayoutBehavior mergedAppBarLayoutBehavior = MergedAppBarLayoutBehavior.from(mergedAppBarLayout);
+        mergedAppBarLayoutBehavior.setToolbarTitle("Title Dummy");
+        mergedAppBarLayoutBehavior.setNavigationOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mBottomSheet.scrollTo(0, 0);
+                mBottomSheetBehaviour.setState(BottomSheetBehaviorGoogleMapsLike.STATE_COLLAPSED);
+            }
+        });
+
+        List<Bitmap> images = new ArrayList<>();
+        List<Photo> photos = new ArrayList<>();
+
+        mViewPagerAdapter = new ItemPagerAdapter(this, images, photos, mImageRef, currentUser.getUid());
+        ViewPager viewPager = (ViewPager) findViewById(R.id.pager);
+        viewPager.setAdapter(mViewPagerAdapter);
+        viewPager.setPageTransformer(true, new DepthPageTransformer());
+
+        RecyclerView commentsList = (RecyclerView) bottomSheetContent.findViewById(R.id.rv_comments);
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        commentsList.setLayoutManager(layoutManager);
+        commentsList.setHasFixedSize(false);
+        List<Comment> comments = new ArrayList<>();
+        comments.add(new Comment("text of comment", "User name "));
+        comments.add(new Comment("text of comment 1", "User name 1"));
+        comments.add(new Comment("text of comment 2", "User name 2"));
+        comments.add(new Comment("text of comment 3", "User name 3"));
+        comments.add(new Comment("text of comment", "User name "));
+        comments.add(new Comment("text of comment 1", "User name 1"));
+        comments.add(new Comment("text of comment 2", "User name 2"));
+        comments.add(new Comment("text of comment 3", "User name 3"));
+        CommentsAdapter commentsAdapter = new CommentsAdapter(comments);
+        commentsList.setAdapter(commentsAdapter);
+
+        mBottomSheetBehaviour.setState(BottomSheetBehaviorGoogleMapsLike.STATE_HIDDEN);
 
     }
 
@@ -257,16 +324,56 @@ public class MapActivity extends AppCompatActivity implements
         }
     }
 
+    private void uploadUserImageToStorage(Bitmap image){
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        image.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+        byte[] data = baos.toByteArray();
+
+        UploadTask uploadTask = mUserImageRef.child(currentUser.getUid()).putBytes(data);
+        uploadTask.addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception exception) {
+                Log.e(MapActivity.this.LOG_TAG, "Error uploading user image. User google id : " + currentUser.getUid());
+            }
+        }).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+            @Override
+            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                //Uri downloadUrl = taskSnapshot.getDownloadUrl();
+                Log.i(MapActivity.this.LOG_TAG, "User image uploaded : " + currentUser.getUid());
+            }
+        });
+    }
+
     @Override
     public void onBackPressed() {
         if(Route.innerLine != null && Route.outerLine != null && Route.placeDestination != null)
             clearCurrentRoute();
-        else if(mBottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED){
-            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        else {
+            switch (mBottomSheetBehaviour.getState()){
+                case BottomSheetBehaviorGoogleMapsLike.STATE_COLLAPSED:
+                    hideBottomSheet();
+                    break;
+                case BottomSheetBehaviorGoogleMapsLike.STATE_ANCHOR_POINT:
+                    mBottomSheetBehaviour.setState(BottomSheetBehaviorGoogleMapsLike.STATE_COLLAPSED);
+                    break;
+                case BottomSheetBehaviorGoogleMapsLike.STATE_EXPANDED:
+                    mBottomSheet.scrollTo(0, 0);
+                    mBottomSheetBehaviour.setState(BottomSheetBehaviorGoogleMapsLike.STATE_ANCHOR_POINT);
+                    break;
+            }
         }
-        else if(mBottomSheetBehavior.getState() == BottomSheetBehavior.STATE_COLLAPSED){
-            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-        }
+    }
+
+    private void hideBottomSheet(){
+        mBottomSheet.scrollTo(0, 0);
+        mBottomSheetBehaviour.setHideable(true);
+        mBottomSheetBehaviour.setState(BottomSheetBehaviorGoogleMapsLike.STATE_HIDDEN);
+    }
+
+    private void showBottomSheet(){
+        mBottomSheet.scrollTo(0, 0);
+        mBottomSheetBehaviour.setState(BottomSheetBehaviorGoogleMapsLike.STATE_COLLAPSED);
+        mBottomSheetBehaviour.setHideable(false);
     }
 
     @Override
@@ -280,6 +387,7 @@ public class MapActivity extends AppCompatActivity implements
         super.onStart();
 
         subscribeToPlacesUpdates();
+
     }
 
     protected void onStop() {
@@ -347,7 +455,8 @@ public class MapActivity extends AppCompatActivity implements
                 }
                 mBottomSheetPeekTitle.setText(selectedPlace.getTitle());
                 mBottomSheetPeekDescription.setText(selectedPlace.getDescription());
-                mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+                mViewPagerAdapter.updateDataSource(selectedPlace, false);
+                showBottomSheet();
                 mSelectedPlace = selectedPlace;
 
                 if(mSelectedPlace == Route.placeDestination){
@@ -364,7 +473,7 @@ public class MapActivity extends AppCompatActivity implements
 
     @Override
     public void onMapLongClick(LatLng latLng) {
-        Toast.makeText(this, "Run task", Toast.LENGTH_SHORT).show();
+        //Toast.makeText(this, "Run task", Toast.LENGTH_SHORT).show();
         GeolocationSearchTask task = new GeolocationSearchTask();
         task.location = latLng;
         task.execute(NetworkUtils.buildUrl(latLng));
@@ -545,7 +654,7 @@ public class MapActivity extends AppCompatActivity implements
                 /*ServerRequests.DeletePlaceTask deletePlaceTask = new ServerRequests.DeletePlaceTask(this);
                 deletePlaceTask.execute((long) 7);*/
                 /*locationFAB.animate().rotationX(10).setDuration(300).start();*/
-                mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+                //mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
                 return false;
             default:
                 return true;
@@ -581,7 +690,8 @@ public class MapActivity extends AppCompatActivity implements
             mSelectedPlace = placeEntity.getBody();
             mBottomSheetPeekTitle.setText(placeEntity.getBody().getTitle());
             mBottomSheetPeekDescription.setText(placeEntity.getBody().getDescription());
-            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+            mViewPagerAdapter.updateDataSource(mSelectedPlace, true);
+            showBottomSheet();
         }
     }
 
@@ -592,6 +702,8 @@ public class MapActivity extends AppCompatActivity implements
     public void onRemovePlaceFinished(Boolean response, long id){
         if(response){
             removePlace(id);
+            mViewPagerAdapter.deleteAllImages();
+            mViewPagerAdapter.clearData();
         }
         else
         {
@@ -601,7 +713,7 @@ public class MapActivity extends AppCompatActivity implements
 
     public void tryToRemovePlace(){
         if(mSelectedPlace != null){
-            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            hideBottomSheet();
             new ServerRequests.DeletePlaceTask(this).execute(mSelectedPlace.getId());
         }
     }
@@ -662,7 +774,7 @@ public class MapActivity extends AppCompatActivity implements
 
     public void buildRouteToCurrentPlace(){
         clearCurrentRoute();
-        mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        showBottomSheet();
         Route.placeDestination = mSelectedPlace;
         new GoogleApiRequests.DirectionTask(this)
                 .execute(new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude()),
@@ -708,8 +820,8 @@ public class MapActivity extends AppCompatActivity implements
     }
 
     public void clearCurrentRoute(){
-        if(mBottomSheetBehavior.getState() == BottomSheetBehavior.STATE_EXPANDED){
-            mBottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        if(mBottomSheetBehaviour.getState() == BottomSheetBehaviorGoogleMapsLike.STATE_EXPANDED || mBottomSheetBehaviour.getState() == BottomSheetBehaviorGoogleMapsLike.STATE_ANCHOR_POINT){
+            mBottomSheetBehaviour.setState(BottomSheetBehaviorGoogleMapsLike.STATE_COLLAPSED);
         }
 
         if(Route.outerLine != null)
@@ -726,9 +838,36 @@ public class MapActivity extends AppCompatActivity implements
 
     private void subscribeToPlacesUpdates(){
         FirebaseMessaging.getInstance().subscribeToTopic("places");
-        Toast.makeText(this, "Places subscription added", Toast.LENGTH_SHORT).show();
-        String token = FirebaseInstanceId.getInstance().getToken();
-        Log.i(LOG_TAG, "token is: " + token);
+    }
+
+    public void chooseImage(){
+        Intent gallery = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.INTERNAL_CONTENT_URI);
+        startActivityForResult(gallery, 100);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(resultCode == RESULT_OK && requestCode == 100){
+            final Uri imageUri = data.getData();
+            try{
+
+                final InputStream isDisplay = getContentResolver().openInputStream(imageUri);
+
+                if(isDisplay == null)
+                    throw new FileNotFoundException();
+
+                Photo photo = new Photo();
+                photo.setOwnerGoogleId(currentUser.getUid());
+                //photo.setPlace(mSelectedPlace);
+
+                new ServerRequests.PostPhotoTask(mViewPagerAdapter, isDisplay, imageUri, mSelectedPlace).execute(photo);
+
+            }catch (FileNotFoundException e){
+                Log.e(MapActivity.this.LOG_TAG, "Error getting image from phone storage by uri : " + imageUri);
+                Toast.makeText(MapActivity.this, "Cannot add image", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     public class GetUserImageTask extends AsyncTask<Uri, Void, Bitmap>{
@@ -752,6 +891,7 @@ public class MapActivity extends AppCompatActivity implements
         @Override
         protected void onPostExecute(Bitmap bitmap) {
             userImage.setImageBitmap(bitmap);
+            uploadUserImageToStorage(bitmap);
         }
     }
 

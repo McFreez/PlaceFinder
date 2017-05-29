@@ -3,4 +3,10 @@
     <string name="web_client_id">795137021022-9tlhgutj34nis01voccrrk8vs8hjpjm3.apps.googleusercontent.com</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
+    <string name="key_binding_default_toolbar_name">Modal-Toolbar-Title</string>
+
+    <string name="BackDropBottomSheetBehavior">com.placefinder.placedetailspanel.BackdropBottomSheetBehavior</string>
+    <string name="BottomSheetBehaviorGoogleMapsLike">com.placefinder.placedetailspanel.BottomSheetBehaviorGoogleMapsLike</string>
+    <string name="MergedAppBarLayoutBehavior">com.placefinder.placedetailspanel.MergedAppBarLayoutBehavior</string>
+
 </resources>
