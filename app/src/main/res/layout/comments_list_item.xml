@@ -10,7 +10,7 @@
         android:id="@+id/comment_user_image"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:src="@drawable/cheese_3" />
+        android:src="@color/colorViewBackground" />
 
     <LinearLayout
         android:id="@+id/comment_content"
@@ -27,7 +27,7 @@
             android:maxLines="1"
             tools:text="Author name"
             android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-            android:textStyle="bold|italic" />
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/comment_text"

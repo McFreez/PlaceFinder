@@ -29,6 +29,8 @@ import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -94,7 +96,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
@@ -118,6 +119,7 @@ public class MapActivity extends AppCompatActivity implements
     private LocationRequest mLocationRequest;
     private OnLocationChangedListener mLocationListener;
     private ItemPagerAdapter mViewPagerAdapter;
+    private CommentsAdapter mCommentsAdapter;
 
     private DrawerLayout mDrawerLayout;
     private FloatingSearchView mFloatingSearchView;
@@ -135,9 +137,9 @@ public class MapActivity extends AppCompatActivity implements
     private CircleImageView userImage;
 
     private FirebaseAuth mapAuth;
-    private FirebaseUser currentUser;
+    private FirebaseUser mCurrentUser;
     private StorageReference mImageRef;
-    private StorageReference mUserImageRef;
+    private StorageReference mUserImagesRef;
 
     private boolean isGoogleApiConnected = false;
     private boolean isLoadingAllPlacesAroundUserStarted = false;
@@ -205,12 +207,12 @@ public class MapActivity extends AppCompatActivity implements
         }
 
         mapAuth = FirebaseAuth.getInstance();
-        currentUser = mapAuth.getCurrentUser();
+        mCurrentUser = mapAuth.getCurrentUser();
 
         FirebaseStorage storage = FirebaseStorage.getInstance();
         StorageReference storageRef = storage.getReference(/*"gs://placefinder-65616.appspot.com/"*/);
         mImageRef = storageRef.child("images");
-        mUserImageRef = storageRef.child("userImages");
+        mUserImagesRef = storageRef.child("userImages");
 
         initControls();
 
@@ -279,7 +281,7 @@ public class MapActivity extends AppCompatActivity implements
         List<Bitmap> images = new ArrayList<>();
         List<Photo> photos = new ArrayList<>();
 
-        mViewPagerAdapter = new ItemPagerAdapter(this, images, photos, mImageRef, currentUser.getUid());
+        mViewPagerAdapter = new ItemPagerAdapter(this, images, photos, mImageRef, mCurrentUser.getUid());
         ViewPager viewPager = (ViewPager) findViewById(R.id.pager);
         viewPager.setAdapter(mViewPagerAdapter);
         viewPager.setPageTransformer(true, new DepthPageTransformer());
@@ -288,17 +290,14 @@ public class MapActivity extends AppCompatActivity implements
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         commentsList.setLayoutManager(layoutManager);
         commentsList.setHasFixedSize(false);
+
+        EditText commentText = (EditText) bottomSheetContent.findViewById(R.id.et_comment_text);
+        ImageView buttonCreateComment = (ImageView) bottomSheetContent.findViewById(R.id.button_create_comment);
+        LinearLayout commentsReplacer = (LinearLayout) bottomSheetContent.findViewById(R.id.comments_replacer);
+
         List<Comment> comments = new ArrayList<>();
-        comments.add(new Comment("text of comment", "User name "));
-        comments.add(new Comment("text of comment 1", "User name 1"));
-        comments.add(new Comment("text of comment 2", "User name 2"));
-        comments.add(new Comment("text of comment 3", "User name 3"));
-        comments.add(new Comment("text of comment", "User name "));
-        comments.add(new Comment("text of comment 1", "User name 1"));
-        comments.add(new Comment("text of comment 2", "User name 2"));
-        comments.add(new Comment("text of comment 3", "User name 3"));
-        CommentsAdapter commentsAdapter = new CommentsAdapter(comments);
-        commentsList.setAdapter(commentsAdapter);
+        mCommentsAdapter = new CommentsAdapter(comments, this, mCurrentUser, mSelectedPlace, commentText, buttonCreateComment, mUserImagesRef, commentsReplacer);
+        commentsList.setAdapter(mCommentsAdapter);
 
         mBottomSheetBehaviour.setState(BottomSheetBehaviorGoogleMapsLike.STATE_HIDDEN);
 
@@ -315,12 +314,12 @@ public class MapActivity extends AppCompatActivity implements
     }
 
     private void setNavigationViewUserData(){
-        if(currentUser != null){
-            userNameTextView.setText(currentUser.getDisplayName());
-            userEmailTextView.setText(currentUser.getEmail());
+        if(mCurrentUser != null){
+            userNameTextView.setText(mCurrentUser.getDisplayName());
+            userEmailTextView.setText(mCurrentUser.getEmail());
 
-            if(currentUser.getPhotoUrl() != null)
-                new GetUserImageTask().execute(currentUser.getPhotoUrl());
+            if(mCurrentUser.getPhotoUrl() != null)
+                new GetUserImageTask().execute(mCurrentUser.getPhotoUrl());
         }
     }
 
@@ -329,17 +328,17 @@ public class MapActivity extends AppCompatActivity implements
         image.compress(Bitmap.CompressFormat.JPEG, 100, baos);
         byte[] data = baos.toByteArray();
 
-        UploadTask uploadTask = mUserImageRef.child(currentUser.getUid()).putBytes(data);
+        UploadTask uploadTask = mUserImagesRef.child(mCurrentUser.getUid()).putBytes(data);
         uploadTask.addOnFailureListener(new OnFailureListener() {
             @Override
             public void onFailure(@NonNull Exception exception) {
-                Log.e(MapActivity.this.LOG_TAG, "Error uploading user image. User google id : " + currentUser.getUid());
+                Log.e(MapActivity.this.LOG_TAG, "Error uploading user image. User google id : " + mCurrentUser.getUid());
             }
         }).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
             @Override
             public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
                 //Uri downloadUrl = taskSnapshot.getDownloadUrl();
-                Log.i(MapActivity.this.LOG_TAG, "User image uploaded : " + currentUser.getUid());
+                Log.i(MapActivity.this.LOG_TAG, "User image uploaded : " + mCurrentUser.getUid());
             }
         });
     }
@@ -449,13 +448,14 @@ public class MapActivity extends AppCompatActivity implements
                 Toast.makeText(this, "Can`t find this place", Toast.LENGTH_SHORT).show();
             else
             {
-                if(!currentUser.getUid().equals(selectedPlace.getOwnerGoogleId()))
+                if(!mCurrentUser.getUid().equals(selectedPlace.getOwnerGoogleId()))
                 {
                     mButtonDeletePlace.setVisibility(View.GONE);
                 }
                 mBottomSheetPeekTitle.setText(selectedPlace.getTitle());
                 mBottomSheetPeekDescription.setText(selectedPlace.getDescription());
                 mViewPagerAdapter.updateDataSource(selectedPlace, false);
+                mCommentsAdapter.updateDataSource(selectedPlace, false);
                 showBottomSheet();
                 mSelectedPlace = selectedPlace;
 
@@ -645,7 +645,7 @@ public class MapActivity extends AppCompatActivity implements
 /*                Place place = new Place();
                 place.setTitle("newTitle");
                 place.setDescription("new Description");
-                //place.setOwnerGoogleId(currentUser.getUid());
+                //place.setOwnerGoogleId(mCurrentUser.getUid());
                 place.setLatitude(55.3234);
                 place.setLongitude(656.234);
 
@@ -669,7 +669,7 @@ public class MapActivity extends AppCompatActivity implements
         fragment.fullAddress = fullAddress;
         fragment.latitude = location.latitude;
         fragment.longitude = location.longitude;
-        fragment.creatorUid = currentUser.getUid();
+        fragment.creatorUid = mCurrentUser.getUid();
 
         fragment.show(getSupportFragmentManager(), PlaceInfoDialogFragment.TAG);
     }
@@ -691,6 +691,7 @@ public class MapActivity extends AppCompatActivity implements
             mBottomSheetPeekTitle.setText(placeEntity.getBody().getTitle());
             mBottomSheetPeekDescription.setText(placeEntity.getBody().getDescription());
             mViewPagerAdapter.updateDataSource(mSelectedPlace, true);
+            mCommentsAdapter.updateDataSource(mSelectedPlace, true);
             showBottomSheet();
         }
     }
@@ -704,6 +705,8 @@ public class MapActivity extends AppCompatActivity implements
             removePlace(id);
             mViewPagerAdapter.deleteAllImages();
             mViewPagerAdapter.clearData();
+
+            mCommentsAdapter.clearData();
         }
         else
         {
@@ -772,6 +775,7 @@ public class MapActivity extends AppCompatActivity implements
     }
     //</editor-fold>
 
+    //<editor-fold desc="Route">
     public void buildRouteToCurrentPlace(){
         clearCurrentRoute();
         showBottomSheet();
@@ -835,6 +839,7 @@ public class MapActivity extends AppCompatActivity implements
 
         showBuildRouteButton();
     }
+    //</editor-fold>
 
     private void subscribeToPlacesUpdates(){
         FirebaseMessaging.getInstance().subscribeToTopic("places");
@@ -858,7 +863,7 @@ public class MapActivity extends AppCompatActivity implements
                     throw new FileNotFoundException();
 
                 Photo photo = new Photo();
-                photo.setOwnerGoogleId(currentUser.getUid());
+                photo.setOwnerGoogleId(mCurrentUser.getUid());
                 //photo.setPlace(mSelectedPlace);
 
                 new ServerRequests.PostPhotoTask(mViewPagerAdapter, isDisplay, imageUri, mSelectedPlace).execute(photo);

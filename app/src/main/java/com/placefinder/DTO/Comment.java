@@ -13,9 +13,18 @@ public class Comment {
 
     }
 
-    public Comment(String commentText, String commentAuthorName){
+    public Comment(String commentText, String commentAuthorName, String commentOwnerGoogleId){
         text = commentText;
         authorName = commentAuthorName;
+        ownerGoogleId = commentOwnerGoogleId;
+    }
+
+    public long getId() {
+        return id;
+    }
+
+    public void setId(long id) {
+        this.id = id;
     }
 
     public String getOwnerGoogleId() {

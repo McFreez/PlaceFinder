@@ -6,9 +6,11 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 import com.google.android.gms.maps.model.LatLng;
+import com.placefinder.DTO.Comment;
 import com.placefinder.DTO.Photo;
 import com.placefinder.DTO.Place;
 import com.placefinder.MapActivity;
+import com.placefinder.adapters.CommentsAdapter;
 import com.placefinder.adapters.ItemPagerAdapter;
 
 import org.springframework.core.ParameterizedTypeReference;
@@ -278,6 +280,124 @@ public class ServerRequests {
         @Override
         protected void onPostExecute(ResponseEntity<List<Photo>> listResponseEntity) {
             mAdapter.onGettingAllPlaceImagesFinished(listResponseEntity);
+        }
+    }
+
+    public static class PostCommentTask extends AsyncTask<Comment, Void, ResponseEntity<Comment>>{
+
+        private static final String TAG = "PostCommentTask";
+        private CommentsAdapter mAdapter;
+        private Place mSelectedPlace;
+
+        public PostCommentTask(CommentsAdapter adapter, Place selectedPlace){
+            mAdapter = adapter;
+            mSelectedPlace = selectedPlace;
+        }
+
+        @Override
+        protected ResponseEntity<Comment> doInBackground(Comment... comments) {
+            RestTemplate template = new RestTemplate();
+            template.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
+            ResponseEntity<Comment> entity = null;
+            try{
+                entity = template.postForEntity(Constants.URL.SAVE_COMMENT(mSelectedPlace.getId()), comments[0], Comment.class);
+            }
+            catch (HttpClientErrorException|HttpServerErrorException e){
+                Log.w(TAG, "Can`t add comment by : " + comments[0].getOwnerGoogleId());
+                entity = new ResponseEntity<>(e.getStatusCode());
+            }
+            catch (Exception e){
+                Log.w(TAG, "Unknown exception adding comment by : " + comments[0].getOwnerGoogleId());
+                entity = new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            }
+            return entity;
+        }
+
+        @Override
+        protected void onPostExecute(ResponseEntity<Comment> commentResponseEntity) {
+            mAdapter.onSavingCommentFinished(commentResponseEntity);
+        }
+    }
+
+    public static class DeleteCommentTask extends AsyncTask<Long, Void, Boolean>{
+
+        private static final String TAG = "DeleteCommentTask";
+        private CommentsAdapter mAdapter;
+        private int mAdapterPosition;
+        private long id;
+
+        public DeleteCommentTask(CommentsAdapter adapter, int adapterPosition){
+            mAdapter = adapter;
+            mAdapterPosition = adapterPosition;
+        }
+
+        @Override
+        protected Boolean doInBackground(Long... longs) {
+            id = longs[0];
+            RestTemplate template = new RestTemplate();
+            template.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
+            Boolean response;
+            try{
+                template.delete(Constants.URL.DELETE_COMMENT(id));
+                response = true;
+            }
+            catch (HttpClientErrorException|HttpServerErrorException e){
+                Log.w(TAG, "Failed to delete comment by id: " + id);
+                response = false;
+            }
+            return response;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean response) {
+            if(response){
+                mAdapter.removingImageSuccess(mAdapterPosition);
+            }
+            else
+                mAdapter.removingImageError();
+        }
+    }
+
+    public static class GetAllPlaceComments extends AsyncTask<Long, Void, ResponseEntity<List<Comment>>>{
+
+        private static final String TAG = "GetAllPlaceComments";
+        private CommentsAdapter mAdapter;
+        private Place mSelectedPlace;
+
+        public GetAllPlaceComments(CommentsAdapter adapter, Place selectedPlace){
+            mAdapter = adapter;
+            mSelectedPlace = selectedPlace;
+        }
+
+        @Override
+        protected ResponseEntity<List<Comment>> doInBackground(Long... longs) {
+            RestTemplate template = new RestTemplate();
+            template.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
+            ResponseEntity<List<Comment>> entity = null;
+            long id = longs[0];
+
+            try{
+                ParameterizedTypeReference<List<Comment>> parametrizedTypeReference = new ParameterizedTypeReference<List<Comment>>(){};
+                //String url = Constants.URL.GET_ALL_PLACE_PHOTOS(id);
+                //entity1 = template.getForEntity(url, Place.class);
+                entity = template.exchange(Constants.URL.GET_ALL_PLACE_COMMENTS(longs[0]), HttpMethod.GET, null, parametrizedTypeReference);
+                //response = true;
+            }
+            catch (HttpClientErrorException|HttpServerErrorException e){
+                Log.w(TAG, "Failed to get places photos by place id = " + id);
+                entity = new ResponseEntity<>(e.getStatusCode());
+                //response = false;
+            }
+            catch (Exception e){
+                Log.w(TAG, "Failed to get places photos by place id = " + id);
+                entity = new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            }
+            return entity;
+        }
+
+        @Override
+        protected void onPostExecute(ResponseEntity<List<Comment>> listResponseEntity) {
+            mAdapter.onGettingAllPlacesCommentsFinished(listResponseEntity);
         }
     }
 }
